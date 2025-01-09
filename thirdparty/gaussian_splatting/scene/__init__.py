@@ -18,13 +18,17 @@ from scene.oursfull import GaussianModel
 from arguments import ModelParams
 from PIL import Image 
 from utils.camera_utils import camera_to_JSON, cameraList_from_camInfosv2, cameraList_from_camInfosv2nogt
+# import sys
+
+# sys.path.append('/home/jinhuilin/code/GS/stg/SpacetimeGaussians')
+
 from helper_train import recordpointshelper, getfisheyemapper
 import torch 
 class Scene:
 
     # gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, resolution_scales=[1.0], multiview=False,duration=50.0, loader="colmap"):
+    def __init__(self, args : ModelParams, gaussians, cam_id=0,load_iteration=None, shuffle=True, resolution_scales=[1.0], multiview=False,duration=50.0, loader="colmap"):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -47,7 +51,7 @@ class Scene:
 
 
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
-            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, multiview, duration=duration)
+            scene_info = sceneLoadTypeCallbacks["Colmap"](cam_id,args.source_path, args.images, args.eval, multiview, duration=duration)
         
         elif loader == "technicolor" or loader == "technicolorvalid" :
             scene_info = sceneLoadTypeCallbacks["Technicolor"](args.source_path, args.images, args.eval, multiview, duration=duration)
@@ -103,6 +107,8 @@ class Scene:
             print("Loading Test Cameras")
             if loader  in ["colmapvalid", "immersivevalid", "colmap", "technicolorvalid", "technicolor", "imv2","imv2valid"]: # we need gt for metrics
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2(scene_info.test_cameras, resolution_scale, args)
+                # edit by lin generate view
+                # self.test_cameras[resolution_scale] = cameraList_from_camInfosv2nogt(scene_info.test_cameras, resolution_scale, args)
             elif loader in ["immersivess", "immersivevalidss"]:
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2(scene_info.test_cameras, resolution_scale, args, ss=True)
             elif loader in ["colmapmv"]:                 # only for multi view
@@ -118,11 +124,14 @@ class Scene:
         for cam in self.test_cameras[resolution_scale]:
             if cam.image_name not in raydict and cam.rayo is not None:
                 raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1).cuda() # 1 x 6 x H x W
-
+        # print("ray",raydict)
+        # print("-----------------")
+        
         for cam in self.train_cameras[resolution_scale]:
             cam.rays = raydict[cam.image_name] # should be direct ?
-
+        # edit by lin 
         for cam in self.test_cameras[resolution_scale]:
+            
             cam.rays = raydict[cam.image_name] # should be direct ?
 
         if loader in ["immersivess", "immersivevalidss"]:# construct shared fisheyd remapping

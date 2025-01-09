@@ -64,8 +64,8 @@ class ModelParams(ParamGroup):
         self.sh_degree = 3
         self._source_path = ""
         self._model_path = ""
-        self._images = "images"
-        self._resolution = -1
+        self._images = "input"
+        self._resolution = 2
         self._white_background = False
         self.data_device = "cuda"
         self.veryrify_llff = 0

@@ -45,7 +45,7 @@ import json
 import cv2
 import os 
 from script.pre_immersive_distorted import SCALEDICT 
-
+# from  thirdparty.gaussian_splatting.scene.oursfull import GaussianModel
 
 def getrenderpip(option="train_ours_full"):
     print("render option", option)
@@ -189,7 +189,7 @@ def removeminmax(gaussians, maxbounds, minbounds):
     gaussians.prune_points(mask) 
     torch.cuda.empty_cache()
 
-
+# from  thirdparty.gaussian_splatting.scene.oursfull import GaussianModel
 def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, viewspace_point_tensor, flag, traincamerawithdistance=None, maxbounds=None, minbounds=None): 
     if densify == 1: # n3d 
         if iteration < opt.densify_until_iter :

@@ -21,6 +21,19 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation, update_quaternion
 from helper_model import getcolormodel, interpolate_point, interpolate_partuse, interpolate_pointv3
+def quantize_tensor(tensor, num_digits=8):
+    """
+    Quantizes the tensor to the specified number of significant digits.
+    
+    Parameters:
+        tensor (torch.Tensor): The tensor to be quantized.
+        num_digits (int): The number of significant digits to retain.
+    
+    Returns:
+        torch.Tensor: The quantized tensor.
+    """
+    scale_factor = 10 ** num_digits  # Scaling factor to preserve the required number of digits
+    return torch.round(tensor * scale_factor) / scale_factor
 class GaussianModel:
 
     def setup_functions(self):
@@ -1144,10 +1157,30 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
+    # def add_densification_stats(self, viewspace_point_tensor, update_filter):
+    #     self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
+    #     self.denom[update_filter] += 1
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
-        self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
-        self.denom[update_filter] += 1
+        """
+        Update the densification statistics for the Gaussian points.
+        
+        This includes accumulating the gradient information and updating the denominators.
+        The gradient is quantized to avoid precision issues during accumulation.
+        """
+        # Calculate the gradient norm
+        gradient = torch.norm(viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True)
 
+        # Use no_grad to ensure quantization doesn't affect gradients during backpropagation
+        with torch.no_grad():
+            # Quantize the gradient before accumulation
+            quantized_gradient = quantize_tensor(gradient)
+            quantized_xyz_accum = quantize_tensor(self.xyz_gradient_accum[update_filter])
+
+        # Apply quantized gradient to the accumulation
+        self.xyz_gradient_accum[update_filter] = quantized_gradient + quantized_xyz_accum
+
+        # Update the denominator for the filter
+        self.denom[update_filter] += 1
 
 
     def addgaussians(self, baduvidx, viewpoint_cam, depthmap, gt_image, numperay=3, ratioend=2, trbfcenter=0.5,depthmax=None,shuffle=False):

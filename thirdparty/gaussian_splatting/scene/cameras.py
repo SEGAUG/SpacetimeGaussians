@@ -18,8 +18,14 @@ from utils.graphics_utils import fov2focal
 #     return pixels / (2 * math.tan(fov / 2))
 from kornia import create_meshgrid
 from helper_model import pix2ndc
-from helper_train import getgtisint8
-import random 
+# from helper_train import getgtisint8
+def getgtisint8():
+    #print("get current gt", bool(int(os.getenv('gtisint8'))))
+    try:
+        import os
+        return bool(int(os.getenv('gtisint8')))
+    except:
+        return False 
 class Camera(nn.Module):
     def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
                  image_name, uid,

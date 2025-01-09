@@ -36,15 +36,46 @@ import cv2
 from tqdm import tqdm
 
 
-sys.path.append("./thirdparty/gaussian_splatting")
+
 
 from thirdparty.gaussian_splatting.utils.loss_utils import l1_loss, ssim, l2_loss, rel_loss
 from helper_train import getrenderpip, getmodel, getloss, controlgaussians, reloadhelper, trbfunction, setgtisint8, getgtisint8
 from thirdparty.gaussian_splatting.scene import Scene
 from argparse import Namespace
 from thirdparty.gaussian_splatting.helper3dg import getparser, getrenderparts
+import torch.backends.cudnn as cudnn
+import logging
+import torch
 
+# 配置日志
+logging.basicConfig(filename='training.log', level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+def set_random_seed(seed: int):
+    """
+    设置随机种子，确保结果的可复现性。
+    :param seed: 随机种子
+    """
+    # 设置 Python 内置随机数生成器的种子
+    random.seed(seed)
+    
+    # 设置 NumPy 随机数生成器的种子
+    np.random.seed(seed)
+    
+    # 设置 PyTorch 随机数生成器的种子
+    torch.manual_seed(seed)
+    
+    # 如果使用 GPU，设置 CUDA 随机种子
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # 如果使用多个 GPU
+    
+    # 设置 CUDNN 可复现性，避免卷积等操作中的随机性
+    cudnn.deterministic = True
+    cudnn.benchmark = False
 
+    # 如果需要设置 CUDA 跨设备同步，防止乱序
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+    print(f"Random seed set to {seed}")
 def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration=50, rgbfunction="rgbv1", rdpip="v2"):
     with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
@@ -105,7 +136,7 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
     flagtwo = 0
     depthdict = {}
 
-    if opt.batch > 1:
+    if opt.batch:
         traincameralist = scene.getTrainCameras().copy()
         traincamdict = {}
         for i in range(duration): # 0 to 4, -> (0.0, to 0.8)
@@ -134,11 +165,11 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
             render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
             
             _, depthH, depthW = render_pkg["depth"].shape
-            borderH = int(depthH/2)
-            borderW = int(depthW/2)
+            # borderH = int(depthH/2)
+            # borderW = int(depthW/2)
 
-            midh =  int(viewpoint_cam.image_height/2)
-            midw =  int(viewpoint_cam.image_width/2)
+            # midh =  int(viewpoint_cam.image_height/2)
+            # midw =  int(viewpoint_cam.image_width/2)
             
             depth = render_pkg["depth"]
             slectemask = depth != 15.0 
@@ -155,6 +186,7 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
     selectedlength = 2
     lasterems = 0 
     gtisint8 = getgtisint8()
+    # direction = 1
 
     for iteration in range(first_iter, opt.iterations + 1):        
         if iteration ==  opt.emsstart:
@@ -168,10 +200,20 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
         if gaussians.rgbdecoder is not None:
             gaussians.rgbdecoder.train()
 
-        if opt.batch > 1:
+        if opt.batch :
             gaussians.zero_gradient_cache()
-            timeindex = randint(0, duration-1) # 0 to 49
+            timeindex = randint(0, duration-1) # 0 to 49 iteration%50 #0#iteration%50#
+            # if direction == 1:  # 正向
+            #     timeindex = iteration % 50
+            #     if timeindex == 49:
+            #         direction = -1  # 到达49，开始反向
+            # else:  # 反向
+            #     timeindex = 49 - (iteration % 50)
+            #     if timeindex == 0:
+            #         direction = 1  # 到达0，开始正向
             viewpointset = traincamdict[timeindex]
+            
+           
             camindex = random.sample(viewpointset, opt.batch)
 
             for i in range(opt.batch):
@@ -208,6 +250,7 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
                 loss.backward()
                 gaussians.cache_gradient()
                 gaussians.optimizer.zero_grad(set_to_none = True)# 
+                logging.info(f"Loss: {loss.item()} | Camera Center {torch.norm(camindex[0].camera_center- camindex[1].camera_center, p=2)}")
 
             if flagems == 1 and len(lossdiect.keys()) == len(viewpointset):
                 # sort dict by value
@@ -398,10 +441,11 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
 
 if __name__ == "__main__":
     
-
+    # set_ran
+    # dom_seed(42)
     args, lp_extract, op_extract, pp_extract = getparser()
     setgtisint8(op_extract.gtisint8)
-    train(lp_extract, op_extract, pp_extract, args.save_iterations, args.debug_from, densify=args.densify, duration=args.duration, rgbfunction=args.rgbfunction, rdpip=args.rdpip)
+    train(lp_extract, op_extract, pp_extract, args.save_iterations, args.debug_from, densify=args.densify, duration=50, rgbfunction=args.rgbfunction, rdpip=args.rdpip)
 
     # All done
     print("\nTraining complete.")

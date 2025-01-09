@@ -44,7 +44,7 @@ Clone the source code of this repo.
 git clone https://github.com/oppo-us-research/SpacetimeGaussians.git --recursive
 cd SpacetimeGaussians
 ```
-
+colmap model_converter --input_path colmap_0/sparse/0/ --output_path colmap_0/manual/ --output_type TXT
 Then run the following command to install the environments with conda.
 Note we will create two environments, one for preprocessing with colmap (```colmapenv```) and one for training and testing (```feature_splatting```). Training, testing and preprocessing have been tested on Ubuntu 20.04. </br>
 ```
@@ -74,7 +74,7 @@ python script/pre_n3d.py --videopath <location>/<scene>
 - For example if you put the dataset at ```/home/Neural3D```, and want to preprocess the ```cook_spinach``` scene, you can run the following command
 ```
 conda activate colmapenv
-python script/pre_n3d.py --videopath /home/Neural3D/cook_spinach/
+python script/pre_n3d.py --videopath /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/cut_beef_srview
 ```
 
 Our codebase expects the following directory structure for the Neural 3D Dataset after preprocessing:
@@ -170,10 +170,29 @@ In the argument to ```--config```, ```<dataset>``` can be ```n3d``` (for Neural 
 You need 24GB GPU memory to train on the Neural 3D Dataset. </br>
 You need 48GB GPU memory to train on the Technicolor Dataset. </br>
 The large memory requirement is because training images are loaded into GPU memory. </br>
-- For example, if you want to train the **lite** model on the first 50 frames of the ```cook_spinach``` scene in the Neural 3D Dataset, you can run the following command </br>
-```
-python train.py --quiet --eval --config configs/n3d_lite/cook_spinach.json --model_path log/cook_spinach_lite --source_path <location>/cook_spinach/colmap_0 
-```
+- For example, if you want to train the **lite** model on the first 50 frames of the ```cook_spinach``` scene in the Neural 3D Dataset, you can run the following command </br> /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/coffee_mar_rendersr/dynerf_160000_coffee
+```/home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/cut_beef_srview
+CUDA_VISIBLE_DEVICES=0 python train.py --quiet --eval --config configs/n3d_full/coffee_martini.json --model_path log/coffee_martini_int8/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/coffee_martini/colmap_0 --gtisint8 1 
+CUDA_VISIBLE_DEVICES=0 python train.py --quiet --eval --config configs/n3d_full/flame_salmon_1.json --model_path log/flame_salmon_1 --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/flame_salmon_1/colmap_0 --gtisint8 1 
+
+CUDA_VISIBLE_DEVICES=1 python train.py --quiet --eval --config configs/n3d_full/flame_steak.json --model_path log/flame_steak --source_path //home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/flame_steak/colmap_0 --gtisint8 1 
+
+CUDA_VISIBLE_DEVICES=1 python train.py --quiet --eval --config configs/n3d_full/sear_steak.json --model_path log/sear_steak_1 --source_path //home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/sear_steak/colmap_0 --gtisint8 1 
+
+/home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/sear_steak/colmap_0
+CUDA_VISIBLE_DEVICES=1 python train.py --quiet --eval --config configs/n3d_full/coffee_martini.json --model_path log/coffee_martini_300/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/coffee_martini/colmap_0 --gtisint8 1
+/home/jinhuilin/code/GS/Real-ESRGAN/results/batch_cam00_5_int8
+CUDA_VISIBLE_DEVICES=0 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/coffee_martini.json --model_path log/coffee_martini_01/ --source_path /home/jinhuilin/code/GS/Real-ESRGAN/results/batch_cam00_5_int8/colmap_0/ 
+
+CUDA_VISIBLE_DEVICES=0 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/flame_steak.json --model_path log/flame_steak/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/flame_steak/colmap_0
+
+CUDA_VISIBLE_DEVICES=1 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/flame_salmon_1.json --model_path log/flame_salmon_1/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/flame_salmon_1/colmap_0
+
+CUDA_VISIBLE_DEVICES=1 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/coffee_martini.json --model_path log/coffee_martini_int8/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/coffee_martini/colmap_0
+
+CUDA_VISIBLE_DEVICES=1 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/cut_roasted_beef.json --model_path log/cut_roasted_beef_40/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/cut_beef/colmap_0
+
+``` /data/data1/zhenyang/N3V/coffee_martini
 
 - If you want to train the **full** model, you can run the following command </br>
 
@@ -202,15 +221,30 @@ python train.py --quiet --gtmask 1 --config configs/im_undistort_lite/02_Flames.
 
 Please refer to the .json config files for more options.
 
+CUDA_VISIBLE_DEVICES=5 python train.py --quiet --eval --config configs/n3d_full/cut_roasted_beef.json --model_path log/cut_roasted_beef_40/ --source_path data/cut_roasted_beef/colmap_0
+\
+CUDA_VISIBLE_DEVICES=1 python train.py --quiet --eval --config configs/n3d_full/coffee_martini.json --model_path log/coffee_martini_200/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/coffee_martini/colmap_0 --gtisint8 1
+
+CUDA_VISIBLE_DEVICES=1 python train.py --quiet --eval --config configs/n3d_full/cook_spinach.json --model_path log/cook_spinach/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/cook_spinach/colmap_0 --gtisint8 1
+
+CUDA_VISIBLE_DEVICES=2 python train.py --quiet --eval --config configs/n3d_full/cut_roasted_beef.json --model_path log/cut_roasted_beef_200/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/cut_roasted_beef/colmap_0 --gtisint8 1
 
 ## Testing
 
 - Test model on Neural 3D Dataset
 
 ```
-python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_<lite|full>/<scene>.json --model_path <path to model> --source_path <location>/<scene>/colmap_0
-```
+CUDA_VISIBLE_DEVICES=6 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/coffee_martini.json --model_path log/coffee_martini_200/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/coffee_martini/colmap_0
 
+CUDA_VISIBLE_DEVICES=2 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/cut_roasted_beef.json --model_path log/cut_roasted_beef/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/cut_roasted_beef/colmap_0
+
+CUDA_VISIBLE_DEVICES=1 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/cook_spinach.json --model_path log/cook_spinach/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/cook_spinach/colmap_0
+
+
+CUDA_VISIBLE_DEVICES=1 python test.py --quiet --eval --skip_train --valloader colmapvalid --configpath configs/n3d_full/sear_steak.json --model_path log/sear_steak/ --source_path /home/jinhuilin/code/GS/stg/SpacetimeGaussians/data/n3v/sear_steak/colmap_0
+
+```
+configs/n3d_full/coffee_martini.json --model_path log/cof1126_lr/ --source_path data/cof_lr/colmap_0
 - Test model on Technicolor Dataset
 ```
 python test.py --quiet --eval --skip_train --valloader technicolorvalid --configpath configs/techni_<lite|full>/<scene>.json --model_path <path to model> --source_path <location>/<scenename>/colmap_0

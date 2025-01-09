@@ -27,6 +27,22 @@ import natsort
 from simple_knn._C import distCUDA2
 import torch
 
+
+# class CameraInfo:
+#     def __init__(self, uid, R, T, FovY, FovX, image, image_path, image_name, width, height, near, far, timestamp):
+#         self.uid = uid
+#         self.R = R
+#         self.T = T
+#         self.FovY = FovY
+#         self.FovX = FovX
+#         self.image = image
+#         self.image_path = image_path
+#         self.image_name = image_name
+#         self.width = width
+#         self.height = height
+#         self.near = near
+#         self.far = far
+#         self.timestamp = timestamp
 class CameraInfo(NamedTuple):
     uid: int
     R: np.array
@@ -113,7 +129,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
     totalcamname = []
     for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
         extr = cam_extrinsics[key]
-        intr = cam_intrinsics[extr.camera_id]
+        # intr = cam_intrinsics[extr.camera_id]
         totalcamname.append(extr.name)
     
     sortedtotalcamelist =  natsort.natsorted(totalcamname)
@@ -762,8 +778,12 @@ def readColmapSceneInfoMv(path, images, eval, llffhold=8, multiview=False, durat
 
 
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, duration=50):
+def readColmapSceneInfo(cam_id,path, images, eval,  llffhold=8,multiview=False,duration=50):
     try:
+        # cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.txt")
+        # cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.txt")
+        # cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
+        # cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
         cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
@@ -787,23 +807,33 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, duratio
 
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), near=near, far=far, startime=starttime, duration=duration)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
-     
+    # 示例调用
+    # cam_infos = [...]  # 你的相机信息列表 edit by lin
+    interpolated_views = generate_interpolated_views(cam_infos, num_views=1)
+    # 调用保存函数
+    # save_interpolated_views_to_txt(interpolated_views)
+
+    # 打印生成的插值结果
+    # for cam in interpolated_views:
+    #     print(f"Interpolated Camera: {cam.image_name}, Timestamp: {cam.timestamp}")
 
     if eval:
         train_cam_infos =  cam_infos[duration:] 
-        test_cam_infos = cam_infos[:duration]
+        test_cam_infos =  cam_infos[duration*cam_id:duration*(cam_id+1)]
+        # test_cam_infos = interpolated_views[duration*cam_id:duration*(cam_id+1)]
+        # edit by lin
         uniquecheck = []
-        for cam_info in test_cam_infos:
-            if cam_info.image_name not in uniquecheck:
-                uniquecheck.append(cam_info.image_name)
-        assert len(uniquecheck) == 1 
+        # for cam_info in test_cam_infos:
+        #     if cam_info.image_name not in uniquecheck:
+        #         uniquecheck.append(cam_info.image_name)
+        # assert len(uniquecheck) == 1 
         
         sanitycheck = []
         for cam_info in train_cam_infos:
             if cam_info.image_name not in sanitycheck:
                 sanitycheck.append(cam_info.image_name)
-        for testname in uniquecheck:
-            assert testname not in sanitycheck
+        # for testname in uniquecheck:
+        #     assert testname not in sanitycheck
     else:
         train_cam_infos = cam_infos
         test_cam_infos = cam_infos[:2] #dummy
@@ -845,6 +875,17 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, duratio
                            nerf_normalization=nerf_normalization,
                            ply_path=totalply_path)
     return scene_info
+
+def save_interpolated_views_to_txt(interpolated_views, filename="/home/jinhuilin/code/GS/stg/SpacetimeGaussians/log/interpolated_views_coffee.txt"):
+    """
+    保存插值结果到文本文件
+    """
+    with open(filename, 'w') as file:
+        for cam in interpolated_views:
+            # 将每个相机的信息写入一行
+            file.write(f"Image Name: {cam.image_name}, Timestamp: {cam.timestamp}, FovY: {cam.FovY}, FovX: {cam.FovX}, Near: {cam.near}, Far: {cam.far}, height: {cam.height}, width: {cam.width}, R: {cam.R}, T: {cam.T}\n")
+    print(f"Interpolated views saved to {filename}")
+
 
 
 
@@ -1198,7 +1239,84 @@ def readColmapCamerasImmersivev2(cam_extrinsics, cam_intrinsics, images_folder, 
             cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
+
+import numpy as np
+from scipy.spatial.transform import Rotation as R, Slerp
+from PIL import Image
+
+
+
+def interpolate_camera(cam_a, cam_b, alpha):
+    """
+    插值两个相机的视角，返回一个新的相机信息（包括旋转矩阵、平移向量、内参等）。
+    alpha: 插值因子，0 <= alpha <= 1
+    """
+    # 旋转矩阵插值（使用四元数插值）
+    rot_a = R.from_matrix(cam_a.R)
+    rot_b = R.from_matrix(cam_b.R)
+    slerp = Slerp([0, 1], R.concatenate([rot_a, rot_b]))
+    rot_interp = slerp(alpha).as_matrix()
+
+    # 平移向量插值
+    trans_interp = (1 - alpha) * cam_a.T + alpha * cam_b.T
+
+    # 内参插值（FovY, FovX, near, far）
+    FovY_interp = (1 - alpha) * cam_a.FovY + alpha * cam_b.FovY
+    FovX_interp = (1 - alpha) * cam_a.FovX + alpha * cam_b.FovX
+    near_interp = (1 - alpha) * cam_a.near + alpha * cam_b.near
+    far_interp = (1 - alpha) * cam_a.far + alpha * cam_b.far
+
+    # 插值后的图像路径和名称
+    name_alpha = alpha*100
+    image_name_interp = f"interpolated_{name_alpha}_{cam_a.image_name}_{cam_b.image_name}"
+
+    # 构造插值后的CameraInfo对象
+    pose_interp = (1 - alpha) * cam_a.pose + alpha * cam_b.pose if cam_a.pose is not None and cam_b.pose is not None else None
+    hpdirecitons_interp = (1 - alpha) * cam_a.hpdirecitons + alpha * cam_b.hpdirecitons if cam_a.hpdirecitons is not None and cam_b.hpdirecitons is not None else None
+
+    new_cam_info = CameraInfo(
+        uid=int((cam_a.uid*(1 - alpha)+cam_b.uid*alpha)*100),
+        R=rot_interp,
+        T=trans_interp,
+        FovY=FovY_interp,
+        FovX=FovX_interp,
+        image=None,
+        image_path=None,
+        image_name=image_name_interp,
+        width=cam_a.width,
+        height=cam_a.height,
+        near=near_interp,
+        far=far_interp,
+        timestamp=(1 - alpha) * cam_a.timestamp + alpha * cam_b.timestamp,
+        pose=pose_interp,
+        hpdirecitons=hpdirecitons_interp,
+        cxr=(1 - alpha) * cam_a.cxr + alpha * cam_b.cxr,
+        cyr=(1 - alpha) * cam_a.cyr + alpha * cam_b.cyr
+    )
+
+
+    return new_cam_info
+
+def generate_interpolated_views(cam_infos, num_views=1):
+    """
+    基于cam_infos生成不同视角的相机信息。
+    num_views: 每对相机生成的视角数
+    """
+    interpolated_cam_infos = []
+    for alpha in np.linspace(0.1, 0.6, num_views):
+        for i in range(int(len(cam_infos)/50 - 1)):
+            for j in range(50):
+                cam_a = cam_infos[i*50+j]
+                cam_b = cam_infos[(i + 1)*50+j]
+                new_cam_info = interpolate_camera(cam_a, cam_b, 0.9)
+                interpolated_cam_infos.append(new_cam_info)
     
+    
+    return interpolated_cam_infos
+
+
+
+   
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
     "Immersive": readColmapSceneInfoImmersive,

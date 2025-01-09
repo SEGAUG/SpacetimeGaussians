@@ -42,7 +42,7 @@ from script.utils_pre import write_colmap
 
 
 
-def extractframes(videopath: Path, startframe=0, endframe=300, downscale=1, save_subdir = '', ext='png'):
+def extractframes(videopath: Path, startframe=0, endframe=50, downscale=1, save_subdir = '', ext='png'):
     output_dir = videopath.parent / save_subdir / videopath.stem
         
     if all((output_dir / f"{i}.{ext}").exists() for i in range(startframe, endframe)):
@@ -76,6 +76,7 @@ def preparecolmapdynerf(folder, offset=0):
     savedir.mkdir(exist_ok=True, parents=True)
 
     for folder in folderlist:
+        # if os.path.exists(folder / f"{offset}.png"):
         imagepath = folder / f"{offset}.png"
         imagesavepath = savedir / f"{folder.name}.png"
 
@@ -157,24 +158,24 @@ if __name__ == "__main__" :
     ##### step1
     print("start extracting 300 frames from videos")
     videoslist = sorted(videopath.glob("*.mp4"))
-    for v in tqdm.tqdm(videoslist, desc="Extract frames from videos"):
-        extractframes(v, downscale=downscale)
+    # for v in tqdm.tqdm(videoslist, desc="Extract frames from videos"):
+    #     extractframes(v, downscale=downscale)
 
     
 
-    # # ## step2 prepare colmap input 
+    # # # ## step2 prepare colmap input 
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
         preparecolmapdynerf(videopath, offset)
 
 
-    print("start preparing colmap database input")
-    # # ## step 3 prepare colmap db file 
-    for offset in tqdm.tqdm(range(startframe, endframe), desc="convertdynerftocolmapdb"):
-        convertdynerftocolmapdb(videopath, offset, downscale)
+    # print("start preparing colmap database input")
+    # # # ## step 3 prepare colmap db file 
+    # for offset in tqdm.tqdm(range(startframe, endframe), desc="convertdynerftocolmapdb"):
+    #     convertdynerftocolmapdb(videopath, offset, downscale)
 
 
-    # ## step 4 run colmap, per frame, if error, reinstall opencv-headless 
-    for offset in range(startframe, endframe):
-        getcolmapsinglen3d(videopath, offset)
+    # # ## step 4 run colmap, per frame, if error, reinstall opencv-headless 
+    # for offset in range(startframe, endframe):
+    #     getcolmapsinglen3d(videopath, offset)
 

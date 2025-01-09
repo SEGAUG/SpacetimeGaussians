@@ -45,7 +45,7 @@ def getparser():
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
     parser.add_argument("--densify", type=int, default=1, help="densify =1, we control points on N3d dataset")
-    parser.add_argument("--duration", type=int, default=5, help="5 debug , 50 used")
+    parser.add_argument("--duration", type=int, default=50, help="5 debug , 50 used")
     parser.add_argument("--basicfunction", type=str, default = "gaussian")
     parser.add_argument("--rgbfunction", type=str, default = "rgbv1")
     parser.add_argument("--rdpip", type=str, default = "v2")

@@ -57,7 +57,7 @@ from thirdparty.gaussian_splatting.arguments import ModelParams, PipelineParams
 warnings.filterwarnings("ignore")
 
 # modified from https://github.com/graphdeco-inria/gaussian-splatting/blob/main/render.py and https://github.com/graphdeco-inria/gaussian-splatting/blob/main/metrics.py
-def render_set(model_path, name, iteration, views, gaussians, pipeline, background, rbfbasefunction, rdpip):
+def render_set(model_path, name, iteration, views, gaussians, pipeline, background, rbfbasefunction, rdpip,cam_id):
     render, GRsetting, GRzer = getrenderpip(rdpip) 
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
@@ -124,12 +124,26 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     else:
         render, GRsetting, GRzer = getrenderpip(rdpip) 
 
-
+    root_path_render = os.path.join(render_path, views[0].image_name)
+    root_path_gt=os.path.join(gts_path, views[0].image_name)
+    if not os.path.exists(root_path_render):
+        os.makedirs(root_path_render)
+    if not os.path.exists(root_path_gt):
+        os.makedirs(root_path_gt)
+            
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         renderingpkg = render(view, gaussians, pipeline, background, scaling_modifier=1.0, basicfunction=rbfbasefunction,  GRsetting=GRsetting, GRzer=GRzer) # C x H x W
         rendering = renderingpkg["render"]
         rendering = torch.clamp(rendering, 0, 1.0)
-        gt = view.original_image[0:3, :, :].cuda().float()
+        # gt = view.original_image[0:3, :, :].cuda().float()
+        # lin by ediy=t
+        try:
+            gt = view.original_image[0:3, :, :].cuda().float()
+        except:
+            if not os.path.exists(os.path.join(render_path, view.image_name)):
+                os.makedirs(os.path.join(render_path, view.image_name))
+            torchvision.utils.save_image(rendering, os.path.join(render_path, view.image_name+'/{0:04d}'.format(idx) + ".png"))
+            continue
         ssims.append(ssim(rendering.unsqueeze(0),gt.unsqueeze(0))) 
 
         psnrs.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
@@ -139,14 +153,14 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         rendernumpy = rendering.permute(1,2,0).detach().cpu().numpy()
         gtnumpy = gt.permute(1,2,0).detach().cpu().numpy()
         
-        ssimv2 =  sk_ssim(rendernumpy, gtnumpy, multichannel=True)
+        ssimv2 =  sk_ssim(rendernumpy, gtnumpy, multichannel=True,win_size=3,data_range=1)
         ssimsv2.append(ssimv2)
 
 
         
-        torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
-        torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
-        image_names.append('{0:05d}'.format(idx) + ".png")
+        torchvision.utils.save_image(rendering, os.path.join(render_path, view.image_name+'/{0:04d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(gt, os.path.join(gts_path, view.image_name+'/{0:04d}'.format(idx) + ".png"))
+        image_names.append('{0:04d}'.format(idx) + ".png")
 
     
 
@@ -201,10 +215,10 @@ def render_setnogt(model_path, name, iteration, views, gaussians, pipeline, back
 
         rendering = render(view, gaussians, pipeline, background,scaling_modifier=1.0, basicfunction=rbfbasefunction,  GRsetting=GRsetting, GRzer=GRzer)["render"] # C x H x W
 
-        torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:04d}'.format(idx) + ".png"))
 
 
-def run_test(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, multiview : bool, duration: int, rgbfunction="rgbv1", rdpip="v2", loader="colmap"):
+def run_test(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, multiview : bool, duration: int, cam_id,rgbfunction="rgbv1", rdpip="v2", loader="colmap"):
     
     with torch.no_grad():
         print("use model {}".format(dataset.model))
@@ -212,7 +226,7 @@ def run_test(dataset : ModelParams, iteration : int, pipeline : PipelineParams, 
 
         gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
 
-        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False, multiview=multiview, duration=duration, loader=loader)
+        scene = Scene(dataset, gaussians,cam_id=cam_id ,load_iteration=iteration, shuffle=False, multiview=multiview, duration=duration, loader=loader)
         rbfbasefunction = trbfunction
         numchannels = 9
         bg_color =  [0 for _ in range(numchannels)]
@@ -220,16 +234,21 @@ def run_test(dataset : ModelParams, iteration : int, pipeline : PipelineParams, 
         
         if gaussians.ts is None :
             cameraslit = scene.getTestCameras()
+            # print('len',len(cameraslit))
             H,W = cameraslit[0].image_height, cameraslit[0].image_width
             gaussians.ts = torch.ones(1,1,H,W).cuda()
 
         if not skip_test and not multiview:            
-            render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, rbfbasefunction, rdpip)
+            render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, rbfbasefunction, rdpip,cam_id)
         if multiview:
             render_setnogt(dataset.model_path, "mv", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, rbfbasefunction, rdpip)
 
 if __name__ == "__main__":
-    
-
     args, model_extract, pp_extract, multiview =gettestparse()
-    run_test(model_extract, args.test_iteration, pp_extract, args.skip_train, args.skip_test, multiview, args.duration,  rgbfunction=args.rgbfunction, rdpip=args.rdpip, loader=args.valloader)
+    numer_cam = 1
+    # cam_no = [3,15,17]
+    for cam_id in range(numer_cam):
+        # if cam_id in cam_no:
+        #     continue
+        run_test(model_extract, args.test_iteration, pp_extract, args.skip_train, args.skip_test, multiview, 50, cam_id ,rgbfunction=args.rgbfunction, rdpip=args.rdpip, loader=args.valloader)
+        # exit()

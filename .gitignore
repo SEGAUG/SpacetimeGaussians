@@ -39,3 +39,11 @@ getconfig.py
 test.sh
 *.sh
 log/*
+
+data/
+log_crop/
+*.so
+*.png
+*.jpg
+*.json
+*.log

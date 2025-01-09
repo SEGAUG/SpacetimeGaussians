@@ -22,7 +22,11 @@ WARNED = False
 
 
 def loadCamv2(args, id, cam_info, resolution_scale):
-    orig_w, orig_h = cam_info.image.size
+    if cam_info.image:
+        orig_w, orig_h = cam_info.image.size
+    else:
+        orig_w=cam_info.width
+        orig_h=cam_info.height
 
     if args.resolution in [1, 2, 4, 8]:
         resolution = round(orig_w/(resolution_scale * args.resolution)), round(orig_h/(resolution_scale * args.resolution))
